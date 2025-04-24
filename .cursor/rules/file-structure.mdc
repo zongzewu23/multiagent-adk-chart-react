@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Directory Organization
+
+/tools/ - Contains the SalesTrendAnalyzer.py tool file that should be analyzed to understand data structures and available metrics
+/sample-frontend/ - Contains the sample dashboard code provided by Claude to use as reference
+/frontend/ - This is where the actual implementation should be created
+
+Implementation Requirements
+
+Read and analyze the Python tool from the /tools/ directory
+Study the sample code in /sample-frontend/ but improve upon it
+Create a complete React dashboard implementation in the /frontend/ directory
+Generate synthetic data that matches the structure expected by SalesTrendAnalyzer
+Implement dark/light mode toggle while maintaining futuristic UI aesthetics
+Create all interactive components following React best practices
+
+
+All finished code should be implemented exclusively in the /frontend/ directory.

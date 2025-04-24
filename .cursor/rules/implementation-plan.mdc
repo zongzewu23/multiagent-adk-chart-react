@@ -1,0 +1,104 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Project Overview
+Create a futuristic, highly interactive sales analytics dashboard for the SalesTrendAnalyzer tool with dark/light mode toggle and rich visualizations.
+Technical Stack
+
+Frontend: React.js with TypeScript and functional components
+Type Safety: TypeScript with strict mode enabled
+Visualization: Plotly.js for advanced interactive charts
+Styling: TailwindCSS for responsive design
+Dark/Light Mode: Theme toggle with persistent user preference
+
+TypeScript Configuration
+
+Use strict type checking
+Create comprehensive type definitions for all data structures
+Implement proper interface definitions for component props
+Use generics for reusable components and utilities
+Leverage discriminated unions for complex state handling
+
+Mock Data Strategy
+
+Generate synthetic data with proper TypeScript interfaces
+Create type-safe data generators matching SalesTrendAnalyzer output structure
+Implement typed models for trends, seasonality, and residuals
+Define enums for dimensions (product, category, region, etc.)
+Create typed utilities for time period transformations
+
+Core Components Architecture
+1. App Container
+
+Strongly typed Theme context provider
+Type-safe routing if needed
+
+2. Dashboard Layout
+
+Typed component props for layout elements
+Interface definitions for metrics and filters
+
+3. Visualization Components
+
+TrendChart: Typed props for time series data and interactions
+BreakdownChart: Generic typing for dimension analysis
+ComponentAnalysisChart: Type-safe trend component visualization
+ForecastChart: Typed prediction model visualization
+MetricsCard: Strictly typed KPI interfaces
+
+4. Interaction Controllers
+
+Enum-based type definitions for selectors
+Type-safe event handlers
+Interface-defined filter structures
+
+State Management
+
+Typed Context API for global state
+Type-safe reducers with action type constants
+Generic hooks for data fetching and transformation
+
+Design Guidelines
+Futuristic UI Elements
+
+Gradient accents with glow effects
+Glass-morphism panels with subtle transparency
+Animated transitions between states
+Minimalist layout with focus on data visualization
+Floating interactive elements
+3D depth through shadows and layering
+
+Light/Dark Mode Design
+
+TypeScript enum for theme types
+Type-safe theme context
+Typed theme utilities and hooks
+
+Chart Styling
+
+Type-safe color palette definitions
+Typed theme-specific styling options
+Interface-defined chart configuration options
+
+Interaction Features
+
+Hover Insights: Type-safe tooltip data structures
+Click Drill-Down: Typed event handling for drill-downs
+Brush Selection: Interface-defined selection ranges
+Pan and Zoom: Type-safe zoom level handling
+Filter Dynamics: Strongly typed filter state management
+Cross-Filtering: Interface-defined filter dependencies
+Animated Transitions: Type-safe animation configuration
+
+Implementation Phases
+
+Setup: TypeScript configuration, project structure, type definitions
+Mock Data: Type-safe data generators and interfaces
+Layout: Typed component structure and responsive design
+Components: Individual chart components with proper prop types
+Interactions: Type-safe event handlers and state updates
+Theme Toggle: Typed theme context and switching logic
+
+Polish: Final styling and animation refinements

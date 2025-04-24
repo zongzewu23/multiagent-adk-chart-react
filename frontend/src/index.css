@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  
+  body {
+    @apply bg-light-background text-light-text transition-colors duration-300 ease-in-out dark:bg-dark-background dark:text-dark-text;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-light-surface/80 backdrop-blur-sm border border-light-border/50 dark:bg-dark-surface/80 dark:border-dark-border/50;
+  }
+  
+  .gradient-border {
+    position: relative;
+  }
+  
+  .gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(to right, theme('colors.light.primary'), theme('colors.light.secondary'));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  
+  .dark .gradient-border::before {
+    background: linear-gradient(to right, theme('colors.dark.primary'), theme('colors.dark.secondary'));
+  }
+  
+  .floating-card {
+    @apply animate-float shadow-lg;
+  }
+} 
