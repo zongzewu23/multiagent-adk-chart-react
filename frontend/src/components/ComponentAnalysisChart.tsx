@@ -1,12 +1,54 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import Plot from 'react-plotly.js'
 import { TrendDataPoint, AnalysisComponentData } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
-import { format } from 'date-fns'
+import { format, subMonths, addMonths } from 'date-fns'
 
 interface ComponentAnalysisChartProps {
   data: AnalysisComponentData
   title: string
+}
+
+// Interface for time series data points
+interface TimeSeriesPoint {
+  period: string
+  value: number
+}
+
+// Function to generate mock seasonal and residual data
+const generateMockAnalysisData = (): AnalysisComponentData => {
+  const startDate = new Date(2023, 0, 1) // Start with January 2023
+  const months = 24 // Generate 2 years of data
+  
+  const trendData: TimeSeriesPoint[] = []
+  const seasonalData: TimeSeriesPoint[] = []
+  const residualData: TimeSeriesPoint[] = []
+  
+  for (let i = 0; i < months; i++) {
+    const currentDate = new Date(startDate)
+    currentDate.setMonth(startDate.getMonth() + i)
+    const period = format(currentDate, 'yyyy-MM') // Format as 'YYYY-MM'
+    
+    // Create a linear trend with small slope
+    const trendValue = 1000 + (i * 50)
+    
+    // Create seasonal pattern (higher in summer months, lower in winter)
+    // This creates a sine wave pattern with peak in July and trough in January
+    const seasonalValue = 300 * Math.sin((i / 12) * Math.PI * 2)
+    
+    // Random residuals (random noise)
+    const residualValue = (Math.random() - 0.5) * 200
+    
+    trendData.push({ period, value: trendValue })
+    seasonalData.push({ period, value: seasonalValue })
+    residualData.push({ period, value: residualValue })
+  }
+  
+  return {
+    trend: trendData,
+    seasonal: seasonalData,
+    residual: residualData
+  }
 }
 
 export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
@@ -16,17 +58,37 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
   const { theme } = useTheme()
   const [windowWidth, setWindowWidth] = useState(window.innerWidth)
   
+  // Helper function to determine chart type from title
+  const getChartType = (chartTitle: string): 'trend' | 'seasonal' | 'residual' => {
+    const titleLower = chartTitle.toLowerCase()
+    if (titleLower.includes('trend')) return 'trend'
+    if (titleLower.includes('season')) return 'seasonal'
+    if (titleLower.includes('resid')) return 'residual'
+    // Default to trend if no match
+    return 'trend'
+  }
+  
+  // Generate or use actual data
+  const analysisData = useMemo(() => {
+    // If we have valid data, use it
+    const chartType = getChartType(title)
+    const hasValidData = data && 
+      ((chartType === 'trend' && data.trend && data.trend.length > 0) ||
+       (chartType === 'seasonal' && data.seasonal && data.seasonal.length > 0) ||
+       (chartType === 'residual' && data.residual && data.residual.length > 0))
+    
+    console.log(`Chart type: ${chartType}, Has valid data: ${hasValidData}, Using mock: ${!hasValidData}`)
+    
+    // Otherwise generate mock data
+    return hasValidData ? data : generateMockAnalysisData()
+  }, [data, title])
+  
   // Update window width when resized
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-  
-  interface TimeSeriesPoint {
-    period: string
-    value: number
-  }
   
   // Add null checking to prevent "Cannot read properties of undefined (reading 'map')" error
   const getDates = (points: TimeSeriesPoint[] | undefined): Date[] => {
@@ -71,41 +133,32 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
   const textColorDark = theme === 'light' ? '#0f172a' : '#f8fafc'
   const backgroundColor = 'rgba(0,0,0,0)'
   
-  // Helper function to determine chart type from title
-  const getChartType = (): 'trend' | 'seasonal' | 'residual' => {
-    const titleLower = title.toLowerCase()
-    if (titleLower.includes('trend')) return 'trend'
-    if (titleLower.includes('season')) return 'seasonal'
-    if (titleLower.includes('resid')) return 'residual'
-    // Default to trend if no match
-    return 'trend'
-  }
-  
   // Determine which data to show based on title and add defensive checks
   const getChartData = () => {
     // Check if data exists and has required properties
-    if (!data) {
+    if (!analysisData) {
       console.warn('No data provided to ComponentAnalysisChart')
       return {
         chartData: [],
         tickvals: [],
-        ticktext: []
+        ticktext: [],
+        yaxisRange: [0, 1]
       }
     }
     
     // Determine which dataset to use based on the chart type
-    const chartType = getChartType()
+    const chartType = getChartType(title)
     let sourceData: TimeSeriesPoint[] | undefined
     
     switch (chartType) {
       case 'trend':
-        sourceData = data.trend
+        sourceData = analysisData.trend
         break
       case 'seasonal':
-        sourceData = data.seasonal
+        sourceData = analysisData.seasonal
         break
       case 'residual':
-        sourceData = data.residual
+        sourceData = analysisData.residual
         break
     }
     
@@ -114,7 +167,8 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
       return {
         chartData: [],
         tickvals: [],
-        ticktext: []
+        ticktext: [],
+        yaxisRange: [0, 1]
       }
     }
     
@@ -127,12 +181,13 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
       return {
         chartData: [],
         tickvals: [],
-        ticktext: []
+        ticktext: [],
+        yaxisRange: [0, 1]
       }
     }
     
     const tickvals = dates.filter((_, i) => i % getTickFrequency() === 0)
-    const ticktext = tickvals.map(date => formatDateLabel(date))
+    const ticktext = tickvals.map(date => format(date, 'MMM yyyy'))
     
     // Get values
     const values = getValues(sourceData)
@@ -225,36 +280,32 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
       chartData,
       tickvals,
       ticktext,
-      yaxisRange
+      yaxisRange,
+      isMockData: !data || !sourceData // Indicate if we're using mock data
     }
   }
   
-  const { chartData, tickvals, ticktext, yaxisRange } = getChartData()
+  const { chartData, tickvals, ticktext, yaxisRange, isMockData } = getChartData()
   
-  // Add conditional rendering if data is not available
-  if (!data) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <div className="text-center p-4 text-light-textSecondary dark:text-dark-textSecondary">
-          No data available
-        </div>
-      </div>
-    )
-  }
-  
-  // If chart data is empty after processing, show a clear message
+  // If chart data is empty even after using mock data, show a message
   if (chartData.length === 0) {
     return (
       <div className="h-full w-full flex items-center justify-center">
         <div className="text-center p-4 text-light-textSecondary dark:text-dark-textSecondary">
-          No {getChartType()} data available for analysis
+          No {getChartType(title)} data available for analysis
         </div>
       </div>
     )
   }
   
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full relative">
+      {/* Mock data indicator */}
+      {isMockData && (
+        <div className="absolute top-2 right-2 px-2 py-1 bg-light-surface dark:bg-dark-surface text-light-textSecondary dark:text-dark-textSecondary text-xs rounded-md opacity-70 z-10">
+          Sample Data
+        </div>
+      )}
       <Plot
         data={chartData}
         layout={{
