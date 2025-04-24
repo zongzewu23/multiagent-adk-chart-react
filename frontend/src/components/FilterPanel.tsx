@@ -46,7 +46,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   }
   
   return (
-    <div className="w-80 h-full bg-light-surface dark:bg-dark-surface border-l border-light-border dark:border-dark-border overflow-y-auto shadow-xl transition-all duration-300">
+    <div className="w-80 h-full bg-light-surface dark:bg-dark-surface border-l border-light-border dark:border-dark-border shadow-xl transition-all duration-300">
       <div className="p-4 border-b border-light-border dark:border-dark-border flex justify-between items-center">
         <h3 className="font-bold text-light-text dark:text-dark-text">
           Filters
@@ -60,7 +60,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         </button>
       </div>
       
-      <div className="p-4">
+      <div className="h-[calc(100%-60px)] overflow-y-auto p-4">
         {/* Date range filter */}
         <div className="mb-6">
           <label className="block text-light-textSecondary dark:text-dark-textSecondary text-sm font-medium mb-2">

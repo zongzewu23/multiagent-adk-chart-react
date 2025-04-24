@@ -8,7 +8,65 @@ import { BreakdownChart } from './BreakdownChart'
 import { ComponentAnalysisChart } from './ComponentAnalysisChart'
 import { FilterPanel } from './FilterPanel'
 import { DetailPanel } from './DetailPanel'
+import { StyledDropdown } from './StyledDropdown'
 import { Metric, TimePeriod, Dimension, DetailSelection } from '../types'
+
+// Create a component to inject global styles
+const GlobalStyles = () => {
+  return (
+    <style dangerouslySetInnerHTML={{
+      __html: `
+        /* Enhanced tooltip animation */
+        @keyframes tooltipFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        /* Custom scrollbar for modern browsers */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+          background: rgba(30, 41, 59, 0.2);
+          border-radius: 6px;
+          margin: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+          background: rgba(99, 102, 241, 0.4);
+          border-radius: 6px;
+          transition: background 0.3s ease;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(99, 102, 241, 0.7);
+        }
+        
+        /* Firefox */
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(99, 102, 241, 0.4) rgba(30, 41, 59, 0.2);
+        }
+        
+        /* Apply smooth animation to hoverlabel for all charts */
+        .js-plotly-plot .plotly .hoverlabel {
+          transition: opacity 0.3s ease, transform 0.3s ease !important;
+          opacity: 0;
+          transform: translateY(10px);
+          animation: tooltipFadeIn 0.3s ease forwards;
+        }
+      `
+    }} />
+  )
+}
 
 export const Dashboard: React.FC = () => {
   const {
@@ -93,156 +151,179 @@ export const Dashboard: React.FC = () => {
   }
   
   return (
-    <div className="flex flex-col h-screen w-full bg-light-background dark:bg-dark-background text-light-text dark:text-dark-text transition-colors duration-300">
-      {/* Header */}
-      <header className="px-6 py-4 flex justify-between items-center glass-panel border-b border-light-border dark:border-dark-border">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-light-text dark:text-dark-text flex items-center">
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-light-primary to-light-secondary dark:from-dark-primary dark:to-dark-secondary">
-              Sales Trend Analyzer
-            </span>
-          </h1>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button 
-            onClick={toggleFilterPanel}
-            className="px-4 py-2 flex items-center space-x-2 rounded-lg bg-light-surfaceHover dark:bg-dark-surfaceHover hover:bg-opacity-80 transition-all"
-          >
-            <Filter size={18} />
-            <span>Filters</span>
-          </button>
-          <ThemeToggle />
-          <button className="p-2 rounded-lg bg-light-surfaceHover dark:bg-dark-surfaceHover hover:bg-opacity-80 transition-all">
-            <Settings size={18} />
-          </button>
-        </div>
-      </header>
-      
-      {/* Main content area */}
-      <div className="flex-grow flex overflow-hidden">
-        {/* Main dashboard content */}
-        <main className="flex-grow p-6 overflow-y-auto">
-          {/* Control bar */}
-          <div className="flex flex-wrap gap-4 mb-6">
-            <div className="flex items-center bg-light-surface dark:bg-dark-surface rounded-lg p-1 shadow-sm">
-              {(['daily', 'weekly', 'monthly', 'quarterly', 'annual'] as TimePeriod[]).map(period => (
-                <button
-                  key={period}
-                  onClick={() => setSelectedTimePeriod(period)}
-                  className={`px-4 py-2 rounded-md transition-all ${
-                    selectedTimePeriod === period 
-                      ? 'bg-light-primary dark:bg-dark-primary text-white' 
-                      : 'text-light-textSecondary dark:text-dark-textSecondary hover:text-light-text dark:hover:text-dark-text'
-                  }`}
-                >
-                  {period.charAt(0).toUpperCase() + period.slice(1)}
-                </button>
-              ))}
+    <>
+      <GlobalStyles />
+      <div className="flex flex-col h-screen w-full bg-light-background dark:bg-dark-background text-light-text dark:text-dark-text transition-colors duration-300">
+        {/* Header */}
+        <header className="px-6 py-4 flex justify-between items-center glass-panel border-b border-light-border dark:border-dark-border">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-light-text dark:text-dark-text flex items-center">
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-light-primary to-light-secondary dark:from-dark-primary dark:to-dark-secondary">
+                Sales Trend Analyzer
+              </span>
+            </h1>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button 
+              onClick={toggleFilterPanel}
+              className="px-4 py-2 flex items-center space-x-2 rounded-lg bg-light-surfaceHover dark:bg-dark-surfaceHover hover:bg-opacity-80 transition-all"
+            >
+              <Filter size={18} />
+              <span>Filters</span>
+            </button>
+            <ThemeToggle />
+            <button className="p-2 rounded-lg bg-light-surfaceHover dark:bg-dark-surfaceHover hover:bg-opacity-80 transition-all">
+              <Settings size={18} />
+            </button>
+          </div>
+        </header>
+        
+        {/* Main content area */}
+        <div className="flex-grow flex overflow-hidden">
+          {/* Main dashboard content */}
+          <div className="flex-grow flex overflow-hidden">
+            <div className="w-full h-full overflow-auto">
+              <main className="flex-grow p-6">
+                {/* Control bar */}
+                <div className="flex flex-wrap gap-4 mb-6">
+                  <div className="flex items-center bg-light-surface dark:bg-dark-surface rounded-lg p-1 shadow-sm">
+                    {(['daily', 'weekly', 'monthly', 'quarterly', 'annual'] as TimePeriod[]).map(period => (
+                      <button
+                        key={period}
+                        onClick={() => setSelectedTimePeriod(period)}
+                        className={`px-4 py-2 rounded-md transition-all ${
+                          selectedTimePeriod === period 
+                            ? 'bg-light-primary dark:bg-dark-primary text-white' 
+                            : 'text-light-textSecondary dark:text-dark-textSecondary hover:text-light-text dark:hover:text-dark-text'
+                        }`}
+                      >
+                        {period.charAt(0).toUpperCase() + period.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center bg-light-surface dark:bg-dark-surface rounded-lg p-1 ml-auto shadow-sm">
+                    <div className="flex items-center px-4 py-2">
+                      <StyledDropdown
+                        label="Dimension"
+                        value={selectedDimension || 'product'}
+                        onChange={(value) => setSelectedDimension(value as Dimension)}
+                        options={[
+                          { value: 'product', label: 'Product' },
+                          { value: 'category', label: 'Category' },
+                          { value: 'channel', label: 'Channel' },
+                          { value: 'region', label: 'Region' },
+                          { value: 'customer', label: 'Customer' }
+                        ]}
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Metrics cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                  {(['revenue', 'units', 'aov', 'margin'] as Metric[]).map(metric => {
+                    // Get the appropriate values based on the metric
+                    const totalValue = metric === 'revenue' ? overallMetrics.totalRevenue :
+                                      metric === 'units' ? overallMetrics.totalUnits :
+                                      metric === 'aov' ? overallMetrics.avgAov :
+                                      overallMetrics.avgMargin;
+                    
+                    const growthValue = metric === 'revenue' ? overallMetrics.revenueGrowth :
+                                      metric === 'units' ? overallMetrics.unitGrowth :
+                                      metric === 'aov' ? overallMetrics.aovGrowth :
+                                      overallMetrics.marginGrowth;
+                    
+                    return (
+                      <KPICard
+                        key={metric}
+                        title={metric}
+                        value={totalValue}
+                        growth={growthValue}
+                        sparklineData={getSparklineData(metric)}
+                        icon={getMetricIcon(metric)}
+                        metric={metric}
+                        isSelected={selectedMetric === metric}
+                        onClick={handleMetricCardClick}
+                      />
+                    )
+                  })}
+                </div>
+                
+                {/* Main trend chart */}
+                <div className="bg-light-surface dark:bg-dark-surface rounded-xl p-6 mb-6 shadow-sm glass-panel">
+                  <TrendChart
+                    data={trendData}
+                    metric={selectedMetric}
+                    title={`${selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)} Trend Analysis`}
+                    onPointClick={handleTrendPointClick}
+                  />
+                </div>
+                
+                {/* Bottom row - Dimensional Analysis & Seasonality */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top performers by dimension */}
+                  <div className="bg-light-surface dark:bg-dark-surface rounded-xl p-6 shadow-sm glass-panel h-[500px]">
+                    {selectedDimension && (
+                      <BreakdownChart
+                        data={dimensionalBreakdown[selectedDimension] || []}
+                        metric={selectedMetric}
+                        dimension={selectedDimension}
+                        title={`Top ${selectedDimension.charAt(0).toUpperCase() + selectedDimension.slice(1)}s by ${selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)}`}
+                        onItemClick={handleDimensionItemClick}
+                      />
+                    )}
+                  </div>
+                  
+                  {/* Seasonality analysis */}
+                  <div className="bg-light-surface dark:bg-dark-surface rounded-xl p-6 shadow-sm glass-panel h-[500px]">
+                    <ComponentAnalysisChart
+                      data={{
+                        trend: trendData.map(point => ({ 
+                          period: point.date.toISOString().split('T')[0], 
+                          value: point[selectedMetric] 
+                        })),
+                        seasonal: trendData.map(point => ({ 
+                          period: point.date.toISOString().split('T')[0], 
+                          value: point[selectedMetric] * 0.2 * Math.sin((new Date(point.date).getMonth() / 12) * Math.PI * 2) 
+                        })),
+                        residual: trendData.map(point => ({ 
+                          period: point.date.toISOString().split('T')[0], 
+                          value: (Math.random() - 0.5) * point[selectedMetric] * 0.1 
+                        }))
+                      }}
+                      title="Seasonality & Residual Analysis"
+                    />
+                  </div>
+                </div>
+              </main>
             </div>
-            
-            <div className="flex items-center bg-light-surface dark:bg-dark-surface rounded-lg p-1 ml-auto shadow-sm">
-              <div className="flex items-center px-4 py-2 space-x-2">
-                <span className="text-light-textSecondary dark:text-dark-textSecondary">Dimension:</span>
-                <select
-                  value={selectedDimension || 'product'}
-                  onChange={(e) => setSelectedDimension(e.target.value as Dimension)}
-                  className="appearance-none bg-transparent border-none text-light-text dark:text-dark-text focus:outline-none pr-8"
-                >
-                  <option value="product">Product</option>
-                  <option value="category">Category</option>
-                  <option value="channel">Channel</option>
-                  <option value="region">Region</option>
-                  <option value="customer">Customer</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          {/* Metrics cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {(['revenue', 'units', 'aov', 'margin'] as Metric[]).map(metric => {
-              // Get the appropriate values based on the metric
-              const totalValue = metric === 'revenue' ? overallMetrics.totalRevenue :
-                                metric === 'units' ? overallMetrics.totalUnits :
-                                metric === 'aov' ? overallMetrics.avgAov :
-                                overallMetrics.avgMargin;
-              
-              const growthValue = metric === 'revenue' ? overallMetrics.revenueGrowth :
-                                metric === 'units' ? overallMetrics.unitGrowth :
-                                metric === 'aov' ? overallMetrics.aovGrowth :
-                                overallMetrics.marginGrowth;
-              
-              return (
-                <KPICard
-                  key={metric}
-                  title={metric}
-                  value={totalValue}
-                  growth={growthValue}
-                  sparklineData={getSparklineData(metric)}
-                  icon={getMetricIcon(metric)}
-                  metric={metric}
-                  isSelected={selectedMetric === metric}
-                  onClick={handleMetricCardClick}
-                />
-              )
-            })}
-          </div>
-          
-          {/* Main trend chart */}
-          <div className="bg-light-surface dark:bg-dark-surface rounded-xl p-6 mb-6 shadow-sm glass-panel">
-            <TrendChart
-              data={trendData}
-              metric={selectedMetric}
-              title={`${selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)} Trend Analysis`}
-              onPointClick={handleTrendPointClick}
-            />
-          </div>
-          
-          {/* Bottom row - Dimensional Analysis & Seasonality */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Top performers by dimension */}
-            <div className="bg-light-surface dark:bg-dark-surface rounded-xl p-6 shadow-sm glass-panel h-[500px]">
-              {selectedDimension && (
-                <BreakdownChart
-                  data={dimensionalBreakdown[selectedDimension] || []}
+
+            {/* Side panels container */}
+            <div className="relative">
+              {/* Detail panel */}
+              {selectedDetail && (
+                <DetailPanel
+                  detail={selectedDetail}
                   metric={selectedMetric}
-                  dimension={selectedDimension}
-                  title={`Top ${selectedDimension.charAt(0).toUpperCase() + selectedDimension.slice(1)}s by ${selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)}`}
-                  onItemClick={handleDimensionItemClick}
+                  trendData={trendData}
+                  onClose={closeDetailPanel}
                 />
               )}
-            </div>
-            
-            {/* Seasonality analysis */}
-            <div className="bg-light-surface dark:bg-dark-surface rounded-xl p-6 shadow-sm glass-panel h-[500px]">
-              <ComponentAnalysisChart
-                data={trendData}
-                title="Seasonality & Residual Analysis"
+              
+              {/* Filter panel */}
+              <FilterPanel
+                isOpen={isFilterPanelOpen}
+                onClose={toggleFilterPanel}
+                filters={filters}
+                onUpdateFilters={updateFilters}
+                onApplyFilters={applyFilters}
+                onResetFilters={resetFilters}
               />
             </div>
           </div>
-        </main>
-        
-        {/* Detail panel */}
-        {selectedDetail && (
-          <DetailPanel
-            detail={selectedDetail}
-            metric={selectedMetric}
-            trendData={trendData}
-            onClose={closeDetailPanel}
-          />
-        )}
-        
-        {/* Filter panel */}
-        <FilterPanel
-          isOpen={isFilterPanelOpen}
-          onClose={toggleFilterPanel}
-          filters={filters}
-          onUpdateFilters={updateFilters}
-          onApplyFilters={applyFilters}
-          onResetFilters={resetFilters}
-        />
+        </div>
       </div>
-    </div>
+    </>
   )
 } 

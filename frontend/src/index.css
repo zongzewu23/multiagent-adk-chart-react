@@ -11,6 +11,21 @@
   body {
     @apply bg-light-background text-light-text transition-colors duration-300 ease-in-out dark:bg-dark-background dark:text-dark-text;
   }
+  
+  /* Properly style dropdown options */
+  select option {
+    @apply bg-light-surface text-light-text dark:bg-dark-surface dark:text-dark-text py-2 px-3;
+  }
+  
+  /* Add proper styling for light-dark CSS function support */
+  :root {
+    color-scheme: light dark;
+  }
+  
+  /* Apply proper selection styling */
+  ::selection {
+    @apply bg-light-primary/30 dark:bg-dark-primary/30;
+  }
 }
 
 @layer components {

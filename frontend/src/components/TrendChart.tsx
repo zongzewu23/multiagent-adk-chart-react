@@ -299,27 +299,61 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           ] : [],
         }}
         config={{
-          displayModeBar: true,
-          displaylogo: false,
-          modeBarButtonsToRemove: [
-            'select2d',
-            'lasso2d',
-            'autoScale2d',
-            'toggleSpikelines',
-          ],
-          responsive: true,
-          toImageButtonOptions: {
-            format: 'png',
-            filename: `${title.toLowerCase().replace(/\s+/g, '_')}`,
-            height: 500,
-            width: 700,
-            scale: 2
-          }
+          displayModeBar: false,
+          responsive: true
         }}
         style={{ width: '100%', height: '100%' }}
         onClick={onPointClick ? handlePointClick : undefined}
         className="chart-container"
       />
+
+      {/* Add custom styling for Plotly tooltips */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        /* Smooth animation for tooltips */
+        .hoverlayer .hover-info {
+          transition: all 0.3s ease !important;
+          opacity: 0;
+          animation: fadeIn 0.3s ease forwards;
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* Apply smooth animation to hoverlabel */
+        .js-plotly-plot .plotly .hoverlabel {
+          transition: opacity 0.3s ease, transform 0.3s ease !important;
+          opacity: 0;
+          transform: translateY(10px);
+          animation: tooltipFadeIn 0.3s ease forwards;
+          border-radius: 8px !important;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
+        }
+        
+        .js-plotly-plot .plotly .hoverlabel .hoverlabel-text-container {
+          padding: 8px 12px !important;
+          font-family: 'Inter', system-ui, sans-serif !important;
+        }
+        
+        @keyframes tooltipFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}} />
     </div>
   )
 } 

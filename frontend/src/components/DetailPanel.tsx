@@ -3,6 +3,8 @@ import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import Plot from 'react-plotly.js'
 import { DetailSelection, Metric, TrendDataPoint, TopPerformer } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
+import { format } from 'date-fns'
+import { CustomScrollbar } from './CustomScrollbar'
 
 interface DetailPanelProps {
   detail: DetailSelection
@@ -199,7 +201,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
   }
   
   return (
-    <div className="w-80 bg-light-surface dark:bg-dark-surface border-l border-light-border dark:border-dark-border overflow-y-auto transition-all duration-300">
+    <div className="w-80 bg-light-surface dark:bg-dark-surface border-l border-light-border dark:border-dark-border transition-all duration-300">
       <div className="p-4 border-b border-light-border dark:border-dark-border flex justify-between items-center">
         <h3 className="font-bold text-light-text dark:text-dark-text">
           {detail.type === 'period' && detail.period
@@ -217,7 +219,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
         </button>
       </div>
       
-      <div className="p-4">
+      <div className="h-[calc(100%-60px)] overflow-y-auto p-4">
         {detail.type === 'period' ? renderPeriodDetail() : renderDimensionDetail()}
       </div>
     </div>
