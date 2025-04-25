@@ -1,6 +1,7 @@
 export type TimePeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual'
 export type Metric = 'revenue' | 'units' | 'aov' | 'margin'
 export type Dimension = 'product' | 'category' | 'channel' | 'region' | 'customer' | null
+export type TimeFilter = 'last7days' | 'last30days' | 'last90days' | 'lastYear' | 'ytd' | 'custom'
 
 export type ThemeMode = 'light' | 'dark'
 

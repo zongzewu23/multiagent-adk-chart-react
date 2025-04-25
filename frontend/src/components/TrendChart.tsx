@@ -1,25 +1,32 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import Plot from 'react-plotly.js'
-import { TrendDataPoint, Metric } from '../types'
+import { TrendDataPoint, Metric, TimeFilter } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
-import { format } from 'date-fns'
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
 interface TrendChartProps {
   data: TrendDataPoint[]
   metric: Metric
-  title: string
-  onPointClick?: (point: TrendDataPoint) => void
+  timeFilter: TimeFilter
+  forecastStart?: number
+  subtitle?: string
+  onPointClick?: (dataPoint: TrendDataPoint) => void
+  title?: string
 }
 
 export const TrendChart: React.FC<TrendChartProps> = ({
   data,
   metric,
-  title,
-  onPointClick
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  timeFilter,
+  forecastStart,
+  subtitle,
+  onPointClick,
+  title
 }) => {
   const { theme } = useTheme()
   const [windowWidth, setWindowWidth] = useState(window.innerWidth)
-  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null)
+  const [_, setSelectedPointIndex] = useState<number | null>(null)
   
   // Update window width when resized
   useEffect(() => {
@@ -28,67 +35,16 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
   
-  // Prepare colors for light/dark mode with improved contrast
-  const lineColor = theme === 'light' ? '#3b82f6' : '#60a5fa'
-  const gridColor = theme === 'light' ? 'rgba(226,232,240,0.6)' : 'rgba(51,65,85,0.6)'
-  const textColor = theme === 'light' ? '#64748b' : '#94a3b8'
-  const textColorDark = theme === 'light' ? '#0f172a' : '#f8fafc'
-  const backgroundColor = 'rgba(0,0,0,0)'
+  // Trend line & moving average colors
+  const trendLineColor = theme === 'light' ? '#22d3ee' : '#06b6d4' // Bright cyan
+  const movingAvgColor = theme === 'light' ? '#a855f7' : '#c084fc' // Purple
+  const seasonalColor = theme === 'light' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(251, 191, 36, 0.1)' // Amber with low opacity
   
   // Calculate appropriate tick frequency based on window width
   const getTickFrequency = (): number => {
     if (windowWidth < 640) return 6 // Show fewer ticks on small screens
     if (windowWidth < 1024) return 4
     return 2 // Show more ticks on larger screens
-  }
-  
-  // Tooltip hover template with improved formatting
-  const getHoverTemplate = (point: TrendDataPoint): string => {
-    const formattedDate = formatDateLabel(new Date(point.period))
-    const formattedValue = formatValue(point[metric])
-    return `<b>${formattedDate}</b><br>${metric}: ${formattedValue}<extra></extra>`
-  }
-  
-  // Format date labels for better readability
-  const formatDateLabel = (date: Date): string => {
-    return format(date, 'MMM d, yyyy')
-  }
-  
-  // Format values with appropriate suffixes
-  const formatValue = (value: number): string => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
-    return value.toFixed(1)
-  }
-  
-  // Enhanced color palette with better contrast for each metric
-  const metricColors = {
-    revenue: theme === 'light' ? '#6366f1' : '#818cf8', // Indigo
-    units: theme === 'light' ? '#10b981' : '#4ade80',   // Emerald
-    aov: theme === 'light' ? '#f59e0b' : '#fbbf24',     // Amber
-    margin: theme === 'light' ? '#3b82f6' : '#60a5fa'   // Blue
-  }
-  
-  // Accent color for trend line with improved visibility
-  const accentColor = theme === 'light' ? '#06b6d4' : '#2dd4bf' // Cyan to Teal
-  
-  // Format numbers with K, M, B suffixes
-  const formatNumber = (value: number): string => {
-    if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)}B`
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
-    return value.toFixed(0)
-  }
-  
-  // Enhanced tooltip with proper currency formatting
-  const formatTooltip = (value: number): string => {
-    if (metric === 'revenue' || metric === 'margin') {
-      return `$${value.toLocaleString()}`
-    } else if (metric === 'aov') {
-      return `$${value.toFixed(2)}`
-    } else {
-      return value.toLocaleString()
-    }
   }
   
   const handlePointClick = (event: any) => {
@@ -99,261 +55,384 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     }
   }
   
-  // Improved date formatting for various time periods
-  const formatPeriod = (period: string): string => {
-    if (period.includes('-')) {
-      if (period.includes('Q')) {
-        // Quarterly data
-        const [year, quarter] = period.split('-Q')
-        return `Q${quarter} '${year.slice(2)}`
-      } else if (period.includes('W')) {
-        // Weekly data
-        const [year, week] = period.split('-W')
-        return `W${week} '${year.slice(2)}`
+  // Generate x and y values for the plots
+  const xValues = useMemo(() => data.map(point => point.period), [data])
+  
+  // Calculate 3-period moving average
+  const movingAverageData = useMemo(() => {
+    const result: number[] = []
+    const window = 3
+    
+    for (let i = 0; i < data.length; i++) {
+      if (i < window - 1) {
+        result.push(null as any) // Use null for first points where we can't calculate MA
       } else {
-        // Monthly data
-        try {
-          const date = new Date(period + '-01')
-          return format(date, "MMM ''yy") // Improved month year format
-        } catch (e) {
-          return period
+        let sum = 0
+        for (let j = 0; j < window; j++) {
+          sum += data[i - j][metric]
         }
+        result.push(sum / window)
       }
+    }
+    
+    return result
+  }, [data, metric])
+  
+  // Find highest and lowest points
+  const [highestPoint, lowestPoint] = useMemo(() => {
+    if (!data.length) return [null, null]
+    
+    let highest = data[0]
+    let lowest = data[0]
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][metric] > highest[metric]) highest = data[i]
+      if (data[i][metric] < lowest[metric]) lowest = data[i]
+    }
+    
+    return [highest, lowest]
+  }, [data, metric])
+  
+  // Calculate growth rate from first to last period
+  const growthRate = useMemo(() => {
+    if (data.length < 2) return 0
+    
+    const firstValue = data[0][metric]
+    const lastValue = data[data.length - 1][metric]
+    
+    return ((lastValue - firstValue) / firstValue) * 100
+  }, [data, metric])
+  
+  const chartTitle = useMemo(() => {
+    return title || `${metric.charAt(0).toUpperCase() + metric.slice(1)} Over Time`
+  }, [metric, title])
+  
+  const yAxisTitle = useMemo(() => {
+    if (metric === 'revenue' || metric === 'margin') {
+      return 'Amount ($)'
+    } else if (metric === 'aov') {
+      return 'Average Order Value ($)'
     } else {
-      // Annual data
-      return `'${period.slice(2)}`
+      return 'Units'
+    }
+  }, [metric])
+  
+  // Set primary line color based on theme and metric
+  const getLineColor = () => {
+    switch (metric) {
+      case 'revenue':
+        return theme === 'light' ? '#6366f1' : '#818cf8' // Indigo
+      case 'units':
+        return theme === 'light' ? '#10b981' : '#4ade80' // Green
+      case 'aov':
+        return theme === 'light' ? '#f59e0b' : '#fbbf24' // Amber
+      case 'margin':
+        return theme === 'light' ? '#3b82f6' : '#60a5fa' // Blue
+      default:
+        return theme === 'light' ? '#6366f1' : '#818cf8' // Default to Indigo
     }
   }
+
+  // Compute actual vs forecast data if forecast starting point is provided
+  const [actualData, forecastData] = useMemo(() => {
+    if (!forecastStart || forecastStart >= data.length) {
+      return [data, []]
+    }
+    
+    return [
+      data.slice(0, forecastStart),
+      data.slice(forecastStart - 1) // Overlap by 1 for continuity
+    ]
+  }, [data, forecastStart])
   
-  // Determine which periods to show labels for
-  const filterVisibleLabels = () => {
-    const frequency = getTickFrequency()
-    return data.map((d, i) => i % frequency === 0)
-  }
+  // Generate x and y values for actual vs forecast
+  const [actualX, actualY] = useMemo(() => {
+    return [
+      actualData.map(point => point.period),
+      actualData.map(point => point[metric])
+    ]
+  }, [actualData, metric])
   
-  // Create visible ticks array based on screen size
-  const visibleTicks = filterVisibleLabels()
-  const tickvals = data.map((d, i) => visibleTicks[i] ? d.period : null).filter(Boolean)
-  const ticktext = tickvals.map(period => period ? formatPeriod(period as string) : '')
+  const [forecastX, forecastY] = useMemo(() => {
+    return [
+      forecastData.map(point => point.period),
+      forecastData.map(point => point[metric])
+    ]
+  }, [forecastData, metric])
   
-  // Enhanced tooltip templates with better currency formatting and typography
-  const tooltipTemplate = (metric === 'revenue' || metric === 'margin' || metric === 'aov') 
-    ? '<b>%{x}</b><br>' + 
-      `${metric.charAt(0).toUpperCase() + metric.slice(1)}: $%{y:,.2f}<br>` +
-      '<extra></extra>'
-    : '<b>%{x}</b><br>' + 
-      `${metric.charAt(0).toUpperCase() + metric.slice(1)}: %{y:,}<br>` +
-      '<extra></extra>'
+  // Extract trend data
+  const [trendX, trendY] = useMemo(() => {
+    return [
+      data.map(point => point.period),
+      data.map(point => point.trend)
+    ]
+  }, [data])
   
-  const trendTooltipTemplate = 
-    '<b>%{x}</b><br>' + 
-    'Trend: ' + (metric === 'revenue' || metric === 'margin' || metric === 'aov' ? '$%{y:,.2f}' : '%{y:,}') +
-    '<extra></extra>'
+  // Extract seasonal data
+  const [seasonalX, seasonalY] = useMemo(() => {
+    return [
+      data.map(point => point.period),
+      data.map(point => point.seasonal)
+    ]
+  }, [data])
   
   return (
-    <div className="h-80 w-full">
-      <Plot
-        data={[
-          {
-            x: data.map(d => d.period),
-            y: data.map(d => d[metric]),
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: title,
-            line: {
-              color: metricColors[metric],
-              width: 3,
-              shape: 'spline', // Smooth lines for better appearance
-            },
-            marker: {
-              color: metricColors[metric],
-              size: 8,
-              line: {
-                color: theme === 'light' ? '#ffffff' : '#1e293b',
-                width: 2
-              }
-            },
-            hovertemplate: tooltipTemplate,
-          },
-          {
-            x: data.map(d => d.period),
-            y: data.map(d => d.trend),
-            type: 'scatter',
-            mode: 'lines',
-            name: 'Trend Line',
-            line: {
-              color: accentColor,
-              width: 2.5, // Slightly thicker for better visibility
-              dash: 'dash',
-              shape: 'spline', // Smooth lines for better appearance
-            },
-            hovertemplate: trendTooltipTemplate,
-          },
-        ]}
-        layout={{
-          autosize: true,
-          title: {
-            text: title,
-            font: {
-              color: textColorDark,
-              family: 'Inter, system-ui, sans-serif',
-              size: 18, 
-              weight: 600,
-            },
-            x: 0.01,
-            xanchor: 'left', 
-            yanchor: 'top',
-            pad: { t: 10, b: 14 } // Improved padding for title
-          },
-          margin: { l: 58, r: 25, t: 50, b: 55, pad: 4 }, // Adjusted margins for better balance
-          paper_bgcolor: backgroundColor,
-          plot_bgcolor: backgroundColor,
-          showlegend: false,
-          xaxis: {
-            showgrid: true,
-            gridcolor: gridColor,
-            gridwidth: 0.5,
-            zeroline: false,
-            tickvals: tickvals,
-            ticktext: ticktext,
-            tickangle: -30, // Angled text for better readability
-            tickfont: {
-              family: 'Inter, system-ui, sans-serif',
-              size: 12, // Slightly larger for better readability
-              color: textColor
-            },
-            tickformat: '%b %d',
-            tickmode: 'array',
-            nticks: 5,
-            fixedrange: true,
-            title: {
-              text: '', // No x-axis title needed
-              standoff: 10,
-              font: {
-                family: 'Inter, system-ui, sans-serif',
-                size: 12,
-                color: textColor
-              }
-            },
-          },
-          yaxis: {
-            showgrid: true,
-            gridcolor: gridColor,
-            gridwidth: 0.5,
-            zeroline: false,
-            tickfont: {
-              family: 'Inter, system-ui, sans-serif',
-              size: 12, // Slightly larger for better readability
-              color: textColor
-            },
-            fixedrange: true,
-            tickformat: ',~s', // Smart number formatting
-            hoverformat: ',.1f',
-            automargin: true,
-            title: {
-              text: metric.charAt(0).toUpperCase() + metric.slice(1),
-              font: {
-                family: 'Inter, system-ui, sans-serif',
-                size: 14, // Larger for better visibility
-                color: textColor
-              },
-              standoff: 15 // More standoff for better spacing
-            }
-          },
-          hovermode: 'closest',
-          hoverlabel: {
-            bgcolor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(30,41,59,0.95)',
-            bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
-            font: {
-              family: 'Inter, system-ui, sans-serif',
-              size: 13,
-              color: textColorDark,
-            },
-            align: 'left'
-          },
-          dragmode: false,
-          annotations: selectedPointIndex !== null ? [
+    <div className="w-full bg-light-surface dark:bg-dark-surface rounded-xl p-4 transition-colors relative">
+      {/* Period-over-Period comparison */}
+      <div className="absolute top-4 right-4 z-10 bg-light-surface/80 dark:bg-dark-surface/80 border border-light-border dark:border-dark-border rounded-lg p-2 text-sm">
+        <div className="flex items-center">
+          {growthRate >= 0 ? (
+            <ArrowUpRight size={16} className="text-light-success dark:text-dark-success mr-1" />
+          ) : (
+            <ArrowDownRight size={16} className="text-light-danger dark:text-dark-danger mr-1" />
+          )}
+          <span className={growthRate >= 0 ? "text-light-success dark:text-dark-success" : "text-light-danger dark:text-dark-danger"}>
+            {growthRate >= 0 ? "+" : ""}{growthRate.toFixed(1)}% overall
+          </span>
+        </div>
+      </div>
+      
+      <div className="mb-2 space-y-1">
+        <h2 className="text-xl font-bold text-light-text dark:text-dark-text">{chartTitle}</h2>
+        {subtitle && (
+          <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">{subtitle}</p>
+        )}
+      </div>
+      <div className="h-[300px]">
+        <Plot
+          data={[
+            // Seasonal pattern area (displayed first so it's in the background)
             {
-              x: data[selectedPointIndex].period,
-              y: data[selectedPointIndex][metric],
-              xref: 'x',
-              yref: 'y',
-              text: formatValue(data[selectedPointIndex][metric]),
-              showarrow: true,
-              arrowhead: 4,
-              arrowsize: 1,
-              arrowwidth: 2,
-              arrowcolor: lineColor,
-              ax: 0,
-              ay: -40,
-              bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
-              borderwidth: 1,
-              borderpad: 4,
-              bgcolor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(30,41,59,0.95)',
-              font: {
-                family: 'Inter, system-ui, sans-serif',
+              x: seasonalX,
+              y: seasonalY.map((y, i) => actualY[i] ? y + actualY[i] : y), // Offset to align with main line
+              type: 'scatter' as const,
+              mode: 'none' as const,
+              fill: 'tozeroy',
+              fillcolor: seasonalColor,
+              name: 'Seasonal Pattern',
+              hoverinfo: 'skip' as const,
+              showlegend: true,
+            },
+            
+            // Actual data
+            {
+              x: actualX,
+              y: actualY,
+              type: 'scatter' as const,
+              mode: 'lines' as const,
+              name: 'Actual',
+              line: {
+                color: getLineColor(),
+                width: 3,
+              },
+              hovertemplate: metric === 'revenue' || metric === 'margin' || metric === 'aov' ? 
+                '%{y:$.2f}<extra></extra>' : '%{y}<extra></extra>',
+            },
+            
+            // Trend line
+            {
+              x: trendX,
+              y: trendY,
+              type: 'scatter' as const,
+              mode: 'lines' as const,
+              name: 'Trend',
+              line: {
+                color: trendLineColor,
+                width: 2,
+                dash: 'dash' as const,
+              },
+              hovertemplate: metric === 'revenue' || metric === 'margin' || metric === 'aov' ? 
+                'Trend: %{y:$.2f}<extra></extra>' : 'Trend: %{y}<extra></extra>',
+            },
+            
+            // Moving average
+            {
+              x: xValues,
+              y: movingAverageData,
+              type: 'scatter' as const,
+              mode: 'lines' as const,
+              name: 'Moving Avg (3-period)',
+              line: {
+                color: movingAvgColor,
+                width: 2,
+              },
+              hovertemplate: metric === 'revenue' || metric === 'margin' || metric === 'aov' ? 
+                'MA(3): %{y:$.2f}<extra></extra>' : 'MA(3): %{y}<extra></extra>',
+            },
+            
+            // Forecast data if available
+            ...(forecastData.length > 0
+              ? [
+                  {
+                    x: forecastX,
+                    y: forecastY,
+                    type: 'scatter' as const,
+                    mode: 'lines' as const,
+                    name: 'Forecast',
+                    line: {
+                      color: getLineColor(),
+                      width: 3,
+                      dash: 'dash' as const,
+                    },
+                    hovertemplate: metric === 'revenue' || metric === 'margin' || metric === 'aov' ? 
+                      '%{y:$.2f}<extra></extra>' : '%{y}<extra></extra>',
+                  },
+                ]
+              : []),
+              
+            // Highest point marker
+            ...(highestPoint ? [{
+              x: [highestPoint.period],
+              y: [highestPoint[metric]],
+              type: 'scatter' as const,
+              mode: 'markers' as const,
+              marker: {
+                color: theme === 'light' ? '#10b981' : '#4ade80', // Success green
+                size: 10,
+                symbol: 'circle',
+              },
+              name: 'Peak',
+              text: ['Peak'],
+              textposition: 'top center' as const,
+              hoverinfo: 'skip' as const,
+            }] : []),
+            
+            // Lowest point marker
+            ...(lowestPoint ? [{
+              x: [lowestPoint.period],
+              y: [lowestPoint[metric]],
+              type: 'scatter' as const,
+              mode: 'markers' as const,
+              marker: {
+                color: theme === 'light' ? '#ef4444' : '#f87171', // Danger red
+                size: 10,
+                symbol: 'circle',
+              },
+              name: 'Low',
+              text: ['Low'],
+              textposition: 'bottom center' as const,
+              hoverinfo: 'skip' as const,
+            }] : []),
+          ]}
+          layout={{
+            autosize: true,
+            margin: { l: 60, r: 20, t: 10, b: 40 },
+            xaxis: {
+              showgrid: true,
+              gridcolor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+              zeroline: false,
+              fixedrange: true,
+              color: theme === 'light' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)',
+            },
+            yaxis: {
+              title: yAxisTitle,
+              titlefont: {
                 size: 12,
-                color: textColorDark
-              }
-            }
-          ] : [],
-        }}
-        config={{
-          displayModeBar: false,
-          responsive: true
-        }}
-        style={{ width: '100%', height: '100%' }}
-        onClick={onPointClick ? handlePointClick : undefined}
-        className="chart-container"
-      />
-
-      {/* Add custom styling for Plotly tooltips */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        /* Smooth animation for tooltips */
-        .hoverlayer .hover-info {
-          transition: all 0.3s ease !important;
-          opacity: 0;
-          animation: fadeIn 0.3s ease forwards;
-        }
-        
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        /* Apply smooth animation to hoverlabel */
-        .js-plotly-plot .plotly .hoverlabel {
-          transition: opacity 0.3s ease, transform 0.3s ease !important;
-          opacity: 0;
-          transform: translateY(10px);
-          animation: tooltipFadeIn 0.3s ease forwards;
-          border-radius: 8px !important;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
-        }
-        
-        .js-plotly-plot .plotly .hoverlabel .hoverlabel-text-container {
-          padding: 8px 12px !important;
-          font-family: 'Inter', system-ui, sans-serif !important;
-        }
-        
-        @keyframes tooltipFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}} />
+                color: theme === 'light' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
+              },
+              showgrid: true,
+              gridcolor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+              zeroline: false,
+              fixedrange: true,
+              color: theme === 'light' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)',
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            showlegend: true,
+            legend: {
+              orientation: 'h',
+              x: 0.5,
+              y: 1.1,
+              xanchor: 'center',
+              font: {
+                size: 12,
+                color: theme === 'light' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)',
+              },
+            },
+            hoverlabel: {
+              bgcolor: theme === 'light' ? '#fff' : '#1e293b',
+              bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
+              font: {
+                color: theme === 'light' ? '#334155' : '#e2e8f0',
+              },
+            },
+            hovermode: 'x unified',
+            annotations: [
+              // Highest point annotation
+              ...(highestPoint ? [{
+                x: highestPoint.period,
+                y: highestPoint[metric],
+                text: 'Peak',
+                showarrow: true,
+                arrowhead: 2,
+                arrowcolor: theme === 'light' ? '#10b981' : '#4ade80',
+                arrowsize: 1,
+                arrowwidth: 1.5,
+                ax: 0,
+                ay: -30,
+                bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
+                borderwidth: 1,
+                bgcolor: theme === 'light' ? 'rgba(255,255,255,0.8)' : 'rgba(30,41,59,0.8)',
+                font: {
+                  family: 'Inter, sans-serif',
+                  size: 10,
+                  color: theme === 'light' ? '#334155' : '#e2e8f0'
+                }
+              }] : []),
+              
+              // Lowest point annotation
+              ...(lowestPoint ? [{
+                x: lowestPoint.period,
+                y: lowestPoint[metric],
+                text: 'Low',
+                showarrow: true,
+                arrowhead: 2,
+                arrowcolor: theme === 'light' ? '#ef4444' : '#f87171',
+                arrowsize: 1,
+                arrowwidth: 1.5,
+                ax: 0,
+                ay: 30,
+                bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
+                borderwidth: 1,
+                bgcolor: theme === 'light' ? 'rgba(255,255,255,0.8)' : 'rgba(30,41,59,0.8)',
+                font: {
+                  family: 'Inter, sans-serif',
+                  size: 10,
+                  color: theme === 'light' ? '#334155' : '#e2e8f0'
+                }
+              }] : []),
+            ],
+          }}
+          config={{
+            displayModeBar: false,
+            responsive: true,
+          }}
+          style={{ width: '100%', height: '100%' }}
+          onClick={handlePointClick}
+        />
+      </div>
+      
+      {/* Legend context explanation */}
+      <div className="mt-1 pt-4 text-xs text-light-textTertiary dark:text-dark-textTertiary border-t border-light-border dark:border-dark-border">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="flex items-center">
+            <div className="w-3 h-3 mr-2 rounded-sm" style={{ backgroundColor: getLineColor() }}></div>
+            <span>Actual: Recorded {metric} values</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 mr-2 rounded-sm" style={{ backgroundColor: trendLineColor }}></div>
+            <span>Trend: Long-term direction</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 mr-2 rounded-sm" style={{ backgroundColor: movingAvgColor }}></div>
+            <span>MA(3): Short-term average</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 mr-2 opacity-40" style={{ backgroundColor: theme === 'light' ? '#f59e0b' : '#fbbf24', borderRadius: '4px' }}></div>
+            <span>Seasonal: Recurring patterns</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 } 
