@@ -40,6 +40,22 @@ export interface DimensionalBreakdown {
   [dimension: string]: TopPerformer[]
 }
 
+// New types for enhanced visualization
+export interface BusinessInsight {
+  title: string
+  description: string
+  type: 'positive' | 'negative' | 'neutral' | 'info'
+}
+
+export interface SeasonalAnnotation {
+  date: Date
+  text: string
+  position: 'top' | 'bottom'
+  value: number
+}
+
+export type ChartViewMode = 'raw' | 'story'
+
 export interface FilterState {
   startDate: Date | null
   endDate: Date | null

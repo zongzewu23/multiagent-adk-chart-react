@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import Plot from 'react-plotly.js'
 import { TrendDataPoint, AnalysisComponentData } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
-import { format, subMonths, addMonths } from 'date-fns'
+import { format, subMonths, addMonths, isEqual, isAfter, isBefore } from 'date-fns'
+import { Info, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 
 interface ComponentAnalysisChartProps {
   data: AnalysisComponentData
@@ -12,6 +13,21 @@ interface ComponentAnalysisChartProps {
 // Interface for time series data points
 interface TimeSeriesPoint {
   period: string
+  value: number
+}
+
+// Interface for business insights
+interface BusinessInsight {
+  title: string
+  description: string
+  type: 'positive' | 'neutral' | 'negative' | 'info'
+}
+
+// Interface for seasonal annotations
+interface SeasonalAnnotation {
+  date: Date
+  text: string
+  position: 'top' | 'bottom'
   value: number
 }
 
@@ -57,6 +73,8 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
 }) => {
   const { theme } = useTheme()
   const [windowWidth, setWindowWidth] = useState(window.innerWidth)
+  const [viewMode, setViewMode] = useState<'raw' | 'story'>('story')
+  const [selectedMonth, setSelectedMonth] = useState<Date | null>(null)
   
   // Helper function to determine chart type from title
   const getChartType = (chartTitle: string): 'trend' | 'seasonal' | 'residual' => {
@@ -111,7 +129,7 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
   
   // Format date labels appropriately
   const formatDateLabel = (date: Date): string => {
-    return format(date, 'MMM d, yyyy')
+    return format(date, 'MMM yyyy')
   }
   
   // Format values with appropriate suffixes
@@ -132,6 +150,249 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
   const textColor = theme === 'light' ? '#64748b' : '#94a3b8'
   const textColorDark = theme === 'light' ? '#0f172a' : '#f8fafc'
   const backgroundColor = 'rgba(0,0,0,0)'
+  
+  // Generate seasonal annotations for storytelling
+  const getSeasonalAnnotations = (
+    dates: Date[], 
+    values: number[]
+  ): SeasonalAnnotation[] => {
+    if (dates.length === 0 || values.length === 0) return []
+    
+    const annotations: SeasonalAnnotation[] = []
+    const chartType = getChartType(title)
+    
+    if (chartType === 'seasonal') {
+      // Find peak and trough months
+      const peakIndices: number[] = []
+      const troughIndices: number[] = []
+      
+      // Simple peak/trough detection
+      for (let i = 1; i < values.length - 1; i++) {
+        // Check if this is a local maximum (peak)
+        if (values[i] > values[i-1] && values[i] > values[i+1] && values[i] > 0) {
+          peakIndices.push(i)
+        }
+        // Check if this is a local minimum (trough)
+        else if (values[i] < values[i-1] && values[i] < values[i+1] && values[i] < 0) {
+          troughIndices.push(i)
+        }
+      }
+      
+      // Get December months (holiday season)
+      const decemberIndices = dates
+        .map((date, index) => date.getMonth() === 11 ? index : -1)
+        .filter(index => index !== -1)
+      
+      // Get July months (summer season)
+      const julyIndices = dates
+        .map((date, index) => date.getMonth() === 6 ? index : -1)
+        .filter(index => index !== -1)
+      
+      // Add December annotation (if positive)
+      decemberIndices.forEach(index => {
+        if (values[index] > 0) {
+          annotations.push({
+            date: dates[index],
+            text: 'Holiday shopping surge',
+            position: 'top',
+            value: values[index]
+          })
+        }
+      })
+      
+      // Add summer annotation (if positive)
+      julyIndices.forEach(index => {
+        if (values[index] > 0) {
+          annotations.push({
+            date: dates[index],
+            text: 'Summer sales peak',
+            position: 'top',
+            value: values[index]
+          })
+        }
+      })
+      
+      // Add Q1 annotation (if negative)
+      const q1Indices = dates
+        .map((date, index) => (date.getMonth() === 0 || date.getMonth() === 1) ? index : -1)
+        .filter(index => index !== -1)
+      
+      q1Indices.forEach(index => {
+        if (values[index] < 0) {
+          annotations.push({
+            date: dates[index],
+            text: 'Post-holiday slump',
+            position: 'bottom',
+            value: values[index]
+          })
+        }
+      })
+    }
+    
+    // Limit to max 4 annotations to avoid cluttering
+    return annotations.slice(0, 4)
+  }
+  
+  // Business context helper functions
+  const getPercentChange = (value: number): string => {
+    const absValue = Math.abs(value)
+    const percentage = ((absValue / 1000) * 100).toFixed(1)
+    return value >= 0 ? `+${percentage}%` : `-${percentage}%`
+  }
+  
+  const getSeasonalTooltipContext = (month: number, value: number): string => {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                   'July', 'August', 'September', 'October', 'November', 'December']
+    
+    if (month === 11) { // December
+      return value > 0 
+        ? `${months[month]} typically sees ${getPercentChange(value)} higher sales than trend due to holiday shopping.`
+        : `Unusually, ${months[month]} is showing below-trend performance. This is contrary to holiday season expectations.`
+    }
+    
+    if (month >= 5 && month <= 7) { // Summer months
+      return value > 0 
+        ? `${months[month]} typically sees ${getPercentChange(value)} higher sales than trend due to summer promotions.`
+        : `${months[month]} is showing below-trend sales despite typical summer uptick.`
+    }
+    
+    if (month >= 0 && month <= 1) { // January-February
+      return value < 0 
+        ? `${months[month]} typically sees ${getPercentChange(value)} lower sales than trend in post-holiday period.`
+        : `${months[month]} is performing above trend, which is unusual for post-holiday period.`
+    }
+    
+    return value > 0 
+      ? `${months[month]} is ${getPercentChange(value)} above expected trend.`
+      : `${months[month]} is ${getPercentChange(value)} below expected trend.`
+  }
+  
+  // Generate business insights
+  const generateInsights = (): BusinessInsight[] => {
+    const chartType = getChartType(title)
+    if (chartType !== 'seasonal' || !analysisData.seasonal) return []
+    
+    const insights: BusinessInsight[] = []
+    const seasonalData = analysisData.seasonal
+    const dates = seasonalData.map(point => new Date(point.period))
+    const values = seasonalData.map(point => point.value)
+    
+    // Group data by year
+    const yearlyData: Record<number, {dates: Date[], values: number[]}> = {}
+    
+    dates.forEach((date, index) => {
+      const year = date.getFullYear()
+      if (!yearlyData[year]) {
+        yearlyData[year] = {dates: [], values: []}
+      }
+      yearlyData[year].dates.push(date)
+      yearlyData[year].values.push(values[index])
+    })
+    
+    const years = Object.keys(yearlyData).map(Number).sort()
+    
+    // Check for consistent patterns
+    if (years.length > 1) {
+      // Check summer months (Jun-Aug) across years
+      const summerComparison = years.map(year => {
+        const { dates, values } = yearlyData[year]
+        const summerIndices = dates
+          .map((date, index) => (date.getMonth() >= 5 && date.getMonth() <= 7) ? index : -1)
+          .filter(index => index !== -1)
+        
+        const summerAvg = summerIndices.length > 0 
+          ? summerIndices.reduce((sum, idx) => sum + values[idx], 0) / summerIndices.length
+          : 0
+          
+        return { year, avg: summerAvg }
+      })
+      
+      // If we have at least 2 years of data
+      if (summerComparison.length >= 2) {
+        const latestYear = summerComparison[summerComparison.length - 1]
+        const previousYear = summerComparison[summerComparison.length - 2]
+        
+        if (latestYear.avg > previousYear.avg && latestYear.avg > 0) {
+          insights.push({
+            title: `Summer ${latestYear.year} Outperformed ${previousYear.year}`,
+            description: `Summer months in ${latestYear.year} showed stronger seasonality than ${previousYear.year}, with approximately ${Math.round((latestYear.avg - previousYear.avg) / previousYear.avg * 100)}% improvement.`,
+            type: 'positive'
+          })
+        } else if (latestYear.avg < previousYear.avg && previousYear.avg > 0) {
+          insights.push({
+            title: `Summer ${latestYear.year} Underperformed ${previousYear.year}`,
+            description: `Summer months in ${latestYear.year} showed weaker seasonality than ${previousYear.year}, with approximately ${Math.round((previousYear.avg - latestYear.avg) / previousYear.avg * 100)}% decrease.`,
+            type: 'negative'
+          })
+        }
+      }
+    }
+    
+    // Check for consistent patterns across all data
+    const winterIndices = dates
+      .map((date, index) => (date.getMonth() === 11 || date.getMonth() === 0) ? index : -1)
+      .filter(index => index !== -1)
+      
+    const winterValues = winterIndices.map(idx => values[idx])
+    const winterAvg = winterValues.reduce((sum, val) => sum + val, 0) / winterValues.length
+    
+    if (winterAvg > 0) {
+      insights.push({
+        title: "Strong Holiday Season Impact",
+        description: "Holiday seasons consistently show significant positive impact on sales, averaging about " + getPercentChange(winterAvg) + " above trend.",
+        type: 'info'
+      })
+    }
+    
+    // Look for anomalies
+    const recentValues = values.slice(-6)
+    const recentDates = dates.slice(-6)
+    
+    for (let i = 0; i < recentValues.length; i++) {
+      const value = recentValues[i]
+      const date = recentDates[i]
+      const month = date.getMonth()
+      const year = date.getFullYear()
+      
+      // Check if this month is significantly different from expected seasonal pattern
+      const monthName = format(date, 'MMMM')
+      
+      // Find if we have the same month in previous years
+      const sameMonthPreviousYears = dates
+        .filter((d, idx) => d.getMonth() === month && d.getFullYear() < year)
+        .map((d, idx) => values[dates.indexOf(d)])
+      
+      if (sameMonthPreviousYears.length > 0) {
+        const avgPreviousYears = sameMonthPreviousYears.reduce((sum, val) => sum + val, 0) / sameMonthPreviousYears.length
+        
+        // If current value is very different from historical pattern
+        if (value > 0 && avgPreviousYears < 0) {
+          insights.push({
+            title: `Unusual Growth in ${monthName} ${year}`,
+            description: `${monthName} ${year} shows positive seasonality, unlike previous years which typically showed negative patterns.`,
+            type: 'positive'
+          })
+        } else if (value < 0 && avgPreviousYears > 0) {
+          insights.push({
+            title: `Unexpected Decline in ${monthName} ${year}`,
+            description: `${monthName} ${year} shows negative seasonality, unlike previous years which typically showed positive patterns.`,
+            type: 'negative'
+          })
+        }
+      }
+    }
+    
+    // If we don't have enough insights, add a generic one
+    if (insights.length === 0) {
+      insights.push({
+        title: "Seasonal Patterns Detected",
+        description: "Clear seasonal patterns show consistent variations throughout the year. Holiday and summer seasons typically show positive impact.",
+        type: 'info'
+      })
+    }
+    
+    return insights.slice(0, 3) // Return at most 3 insights
+  }
   
   // Determine which data to show based on title and add defensive checks
   const getChartData = () => {
@@ -204,6 +465,9 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
     
     let chartData: any[] = []
     
+    // Get annotations for storytelling
+    const annotations = viewMode === 'story' ? getSeasonalAnnotations(dates, values) : []
+    
     // Create the appropriate chart based on type
     switch (chartType) {
       case 'trend':
@@ -224,18 +488,54 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
         break
         
       case 'seasonal':
-        // For seasonal data, use a bar chart for better visibility
+        // Enhanced hover template for seasonal data with business context
+        const seasonalHoverTemplate = (viewMode === 'story') ?
+          '<b>%{x|%b %Y}</b><br>' +
+          'Value: %{y:,.1f}<br>' +
+          '<span>%{customdata}</span>' +
+          '<extra></extra>' :
+          '%{x|%b %Y}: %{y:,.1f}<extra></extra>'
+          
+        // Add custom data for hover template
+        const customdata = dates.map((date, i) => 
+          getSeasonalTooltipContext(date.getMonth(), values[i])
+        )
+        
+        // For seasonal data, use a bar chart with color coding
         chartData.push({
           x: dates,
           y: values,
           type: 'bar',
           name: 'Seasonal',
           marker: {
-            color: lineColors.seasonal,
+            color: values.map(val => val >= 0 ? 
+              (theme === 'light' ? '#10b981' : '#4ade80') : // Green for positive
+              (theme === 'light' ? '#ef4444' : '#f87171')   // Red for negative
+            ),
             opacity: 0.8,
           },
-          hovertemplate: '%{x|%b %d, %Y}: %{y:,.1f}<extra></extra>'
+          customdata: customdata,
+          hovertemplate: seasonalHoverTemplate
         })
+        
+        // If in story mode, highlight significant bars
+        if (viewMode === 'story') {
+          // Add a baseline at y=0
+          const zeroLine = new Array(dates.length).fill(0)
+          chartData.push({
+            x: dates,
+            y: zeroLine,
+            type: 'scatter',
+            mode: 'lines',
+            name: 'Baseline',
+            line: {
+              color: theme === 'light' ? 'rgba(100,116,139,0.5)' : 'rgba(148,163,184,0.5)',
+              width: 1.5,
+              dash: 'dot'
+            },
+            hoverinfo: 'skip'
+          })
+        }
         break
         
       case 'residual':
@@ -281,11 +581,23 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
       tickvals,
       ticktext,
       yaxisRange,
-      isMockData: !data || !sourceData // Indicate if we're using mock data
+      isMockData: !data || !sourceData, // Indicate if we're using mock data
+      annotations,
+      insights: chartType === 'seasonal' ? generateInsights() : [],
+      chartType
     }
   }
   
-  const { chartData, tickvals, ticktext, yaxisRange, isMockData } = getChartData()
+  const { 
+    chartData, 
+    tickvals, 
+    ticktext, 
+    yaxisRange, 
+    isMockData, 
+    annotations,
+    insights,
+    chartType
+  } = getChartData()
   
   // If chart data is empty even after using mock data, show a message
   if (chartData.length === 0) {
@@ -298,85 +610,211 @@ export const ComponentAnalysisChart: React.FC<ComponentAnalysisChartProps> = ({
     )
   }
   
+  // Create plot annotations from our semantic annotations
+  const plotAnnotations = annotations.map((annotation, idx) => {
+    const yPos = annotation.position === 'top' ? 
+      annotation.value + Math.abs(annotation.value * 0.2) : 
+      annotation.value - Math.abs(annotation.value * 0.2)
+      
+    return {
+      x: annotation.date,
+      y: yPos,
+      text: annotation.text,
+      showarrow: true,
+      arrowhead: 2,
+      arrowsize: 1,
+      arrowwidth: 1.5,
+      arrowcolor: theme === 'light' ? '#64748b' : '#94a3b8',
+      font: {
+        family: 'Inter, system-ui, sans-serif',
+        size: 10,
+        color: theme === 'light' ? '#0f172a' : '#f8fafc',
+      },
+      bgcolor: theme === 'light' ? 'rgba(255,255,255,0.8)' : 'rgba(30,41,59,0.8)',
+      bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
+      borderwidth: 1,
+      borderpad: 4,
+      ay: annotation.position === 'top' ? -30 : 30,
+      ax: 0
+    }
+  })
+  
+  // Get subtitle text based on chart type
+  const getSubtitleText = () => {
+    if (chartType === 'seasonal') {
+      return 'Positive values indicate sales above expected trend, negative values show below-trend performance'
+    }
+    if (chartType === 'residual') {
+      return 'Unexplained variations after accounting for trend and seasonal patterns'
+    }
+    return ''
+  }
+  
+  // Generate plot title with enhanced information
+  const enhancedTitle = {
+    text: `<b>${title}</b>` + (viewMode === 'story' && getSubtitleText() ? 
+      `<br><span style="font-size: 11px; color: ${textColor}">${getSubtitleText()}</span>` : ''),
+    font: {
+      color: theme === 'light' ? '#0f172a' : '#f8fafc',
+      family: 'Inter, system-ui, sans-serif',
+      size: 16,
+    },
+    x: 0.01,
+    xanchor: 'left',
+    yanchor: 'top'
+  }
+  
   return (
-    <div className="h-full w-full relative">
-      {/* Mock data indicator */}
-      {isMockData && (
-        <div className="absolute top-2 right-2 px-2 py-1 bg-light-surface dark:bg-dark-surface text-light-textSecondary dark:text-dark-textSecondary text-xs rounded-md opacity-70 z-10">
-          Sample Data
+    <div className="h-full w-full relative flex flex-col">
+      {/* View mode toggle */}
+      <div className="absolute top-2 right-2 z-10 flex gap-1">
+        {/* Mock data indicator */}
+        {isMockData && (
+          <div className="px-2 py-1 bg-light-surface dark:bg-dark-surface text-light-textSecondary dark:text-dark-textSecondary text-xs rounded-md opacity-70">
+            Sample Data
+          </div>
+        )}
+        
+        {/* Toggle between raw and story view */}
+        <div className="flex bg-light-surface dark:bg-dark-surface rounded-md overflow-hidden border border-light-border dark:border-dark-border">
+          <button 
+            className={`px-2 py-1 text-xs ${viewMode === 'raw' ? 
+              'bg-light-primary dark:bg-dark-primary text-white' : 
+              'text-light-textSecondary dark:text-dark-textSecondary'}`}
+            onClick={() => setViewMode('raw')}
+          >
+            Raw Data
+          </button>
+          <button 
+            className={`px-2 py-1 text-xs ${viewMode === 'story' ? 
+              'bg-light-primary dark:bg-dark-primary text-white' : 
+              'text-light-textSecondary dark:text-dark-textSecondary'}`}
+            onClick={() => setViewMode('story')}
+          >
+            Story View
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex-grow relative min-h-0">
+        <Plot
+          data={chartData}
+          layout={{
+            autosize: true,
+            title: enhancedTitle,
+            margin: { l: 50, r: 25, t: viewMode === 'story' ? 70 : 50, b: 50, pad: 4 },
+            paper_bgcolor: backgroundColor,
+            plot_bgcolor: backgroundColor,
+            showlegend: false,
+            xaxis: {
+              showgrid: true,
+              gridcolor: gridColor,
+              gridwidth: 0.5,
+              zeroline: false,
+              tickvals: tickvals,
+              ticktext: ticktext,
+              tickangle: -30,
+              tickfont: {
+                family: 'Inter, system-ui, sans-serif',
+                size: 10,
+                color: textColor
+              },
+              tickformat: '%b %d',
+              tickmode: 'array',
+              nticks: 5,
+              fixedrange: true,
+            },
+            yaxis: {
+              showgrid: true,
+              gridcolor: gridColor,
+              gridwidth: 0.5,
+              zeroline: true,
+              zerolinecolor: theme === 'light' ? 'rgba(100,116,139,0.7)' : 'rgba(148,163,184,0.7)',
+              zerolinewidth: 1.5,
+              tickfont: {
+                family: 'Inter, system-ui, sans-serif',
+                size: 10,
+                color: textColor
+              },
+              fixedrange: true,
+              tickformat: ',~s', // Smart number formatting
+              hoverformat: ',.1f',
+              automargin: true,
+              range: yaxisRange, // Explicitly set y-axis range for better visibility
+            },
+            hovermode: 'closest',
+            hoverlabel: {
+              bgcolor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(30,41,59,0.95)',
+              bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
+              font: {
+                family: 'Inter, system-ui, sans-serif',
+                size: 12,
+                color: theme === 'light' ? '#0f172a' : '#f8fafc',
+              },
+              align: 'left',
+            },
+            dragmode: false,
+            annotations: viewMode === 'story' ? plotAnnotations : [],
+            shapes: viewMode === 'story' && selectedMonth ? [{
+              type: 'rect',
+              xref: 'x',
+              yref: 'paper',
+              x0: selectedMonth,
+              x1: addMonths(selectedMonth, 1), 
+              y0: 0,
+              y1: 1,
+              fillcolor: theme === 'light' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(96, 165, 250, 0.1)',
+              opacity: 0.7,
+              line: {
+                width: 0
+              }
+            }] : [],
+          }}
+          config={{
+            displayModeBar: false,
+            responsive: true
+          }}
+          style={{ width: '100%', height: '100%' }}
+          onClick={(data) => {
+            if (data.points && data.points[0]) {
+              const date = new Date(data.points[0].x)
+              setSelectedMonth(date)
+            }
+          }}
+        />
+      </div>
+      
+      {/* Insights panel - only shown in story view and for seasonal data */}
+      {viewMode === 'story' && chartType === 'seasonal' && insights.length > 0 && (
+        <div className="mt-2 p-3 bg-light-surface dark:bg-dark-surface rounded-md border border-light-border dark:border-dark-border text-sm flex flex-col gap-2 max-h-32 overflow-y-auto">
+          <h4 className="text-xs font-medium text-light-textSecondary dark:text-dark-textSecondary">
+            Analysis Insights
+          </h4>
+          
+          {insights.map((insight, idx) => (
+            <div key={idx} className="flex gap-2 items-start">
+              <div className="mt-0.5">
+                {insight.type === 'positive' && (
+                  <TrendingUp size={14} className="text-light-success dark:text-dark-success" />
+                )}
+                {insight.type === 'negative' && (
+                  <TrendingDown size={14} className="text-light-danger dark:text-dark-danger" />
+                )}
+                {insight.type === 'info' && (
+                  <Info size={14} className="text-light-info dark:text-dark-info" />
+                )}
+                {insight.type === 'neutral' && (
+                  <AlertTriangle size={14} className="text-light-warning dark:text-dark-warning" />
+                )}
+              </div>
+              <div>
+                <div className="font-medium text-xs">{insight.title}</div>
+                <p className="text-xs text-light-textSecondary dark:text-dark-textSecondary">{insight.description}</p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
-      <Plot
-        data={chartData}
-        layout={{
-          autosize: true,
-          title: {
-            text: title,
-            font: {
-              color: theme === 'light' ? '#0f172a' : '#f8fafc',
-              family: 'Inter, system-ui, sans-serif',
-              size: 16,
-            },
-            x: 0.01,
-            xanchor: 'left'
-          },
-          margin: { l: 50, r: 25, t: 50, b: 50, pad: 4 },
-          paper_bgcolor: backgroundColor,
-          plot_bgcolor: backgroundColor,
-          showlegend: false,
-          xaxis: {
-            showgrid: true,
-            gridcolor: gridColor,
-            gridwidth: 0.5,
-            zeroline: false,
-            tickvals: tickvals,
-            ticktext: ticktext,
-            tickangle: -30,
-            tickfont: {
-              family: 'Inter, system-ui, sans-serif',
-              size: 10,
-              color: textColor
-            },
-            tickformat: '%b %d',
-            tickmode: 'array',
-            nticks: 5,
-            fixedrange: true,
-          },
-          yaxis: {
-            showgrid: true,
-            gridcolor: gridColor,
-            gridwidth: 0.5,
-            zeroline: false,
-            tickfont: {
-              family: 'Inter, system-ui, sans-serif',
-              size: 10,
-              color: textColor
-            },
-            fixedrange: true,
-            tickformat: ',~s', // Smart number formatting
-            hoverformat: ',.1f',
-            automargin: true,
-            range: yaxisRange, // Explicitly set y-axis range for better visibility
-          },
-          hovermode: 'closest',
-          hoverlabel: {
-            bgcolor: theme === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(30,41,59,0.95)',
-            bordercolor: theme === 'light' ? '#e2e8f0' : '#334155',
-            font: {
-              family: 'Inter, system-ui, sans-serif',
-              size: 12,
-              color: theme === 'light' ? '#0f172a' : '#f8fafc',
-            },
-            align: 'left',
-          },
-          dragmode: false,
-        }}
-        config={{
-          displayModeBar: false,
-          responsive: true
-        }}
-        style={{ width: '100%', height: '100%' }}
-      />
       
       {/* Add custom styling for Plotly tooltips */}
       <style dangerouslySetInnerHTML={{

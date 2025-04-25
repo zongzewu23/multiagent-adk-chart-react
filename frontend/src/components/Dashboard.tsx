@@ -318,15 +318,15 @@ export const Dashboard: React.FC = () => {
                       data={{
                         trend: trendData.map(point => ({ 
                           period: point.date.toISOString().split('T')[0], 
-                          value: point[selectedMetric] 
+                          value: point.trend
                         })),
                         seasonal: trendData.map(point => ({ 
                           period: point.date.toISOString().split('T')[0], 
-                          value: point[selectedMetric] * 0.2 * Math.sin((new Date(point.date).getMonth() / 12) * Math.PI * 2) 
+                          value: point.seasonal
                         })),
                         residual: trendData.map(point => ({ 
                           period: point.date.toISOString().split('T')[0], 
-                          value: (Math.random() - 0.5) * point[selectedMetric] * 0.1 
+                          value: point.residual
                         }))
                       }}
                       title="Seasonality & Residual Analysis"
